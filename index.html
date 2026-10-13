@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIORI-3 Repository Analyser</title>
+  <meta name="description" content="AI-assisted technical evaluation of public GitHub repositories submitted to the AIORI-3 Hackathon — for evaluators and mentors, no cloning required.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%231d3557'/%3E%3Ctext x='32' y='42' font-family='Georgia,serif' font-size='28' font-weight='700' fill='%23f6f5f1' text-anchor='middle'%3EA3%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div class="topband" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <div class="brand">
+        <div class="seal" aria-hidden="true">A3</div>
+        <div>
+          <div class="kicker">AIORI-3 Hackathon &middot; Evaluation Infrastructure</div>
+          <h1>Repository Analyser</h1>
+          <p class="sub">AI-assisted technical review of public GitHub submissions &mdash; no cloning, no downloads.</p>
+        </div>
+      </div>
+      <nav class="topnav">
+        <button class="btn ghost" id="btnHistory" type="button">Evaluation register</button>
+        <button class="btn ghost" id="btnSettings" type="button">Settings</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel intake" aria-labelledby="intakeTitle">
+      <div class="panel-head">
+        <h2 id="intakeTitle" class="sec-title"><span class="sec-no">§</span> Submission intake</h2>
+        <div class="engine" id="engineBadge"></div>
+      </div>
+      <form id="intakeForm" autocomplete="off">
+        <div class="field wide">
+          <label for="repoUrl">Public GitHub repository</label>
+          <input id="repoUrl" type="text" inputmode="url" placeholder="https://github.com/team-name/project  ·  or  owner/repo" required>
+        </div>
+        <div class="grid3">
+          <div class="field">
+            <label for="psSelect">Problem statement</label>
+            <select id="psSelect"></select>
+          </div>
+          <div class="field">
+            <label for="teamId">Team / submission ID <span class="opt">optional</span></label>
+            <input id="teamId" type="text" placeholder="e.g. AIORI3-T042">
+          </div>
+          <div class="field">
+            <label for="evaluator">Evaluator <span class="opt">optional</span></label>
+            <input id="evaluator" type="text" placeholder="Name of evaluator / mentor">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnAnalyse" type="submit">Analyse repository</button>
+          <span class="hint">Supports <code>/tree/&lt;branch&gt;/&lt;subfolder&gt;</code> links. Shareable: <code>?repo=owner/name&amp;ps=PS-016</code></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="progress" class="panel progress" hidden aria-live="polite">
+      <h2 class="sec-title"><span class="sec-no">§</span> Analysis in progress</h2>
+      <ol class="steps" id="steps"></ol>
+      <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+      <p class="progress-msg" id="progressMsg"></p>
+    </section>
+
+    <div id="errorBox" class="alert error" hidden></div>
+
+    <section id="report" hidden></section>
+
+    <section id="intro" class="intro">
+      <div class="intro-grid">
+        <article>
+          <h3>Method</h3>
+          <p>The repository is read in-browser through the GitHub API and converted into a <em>gitingest</em>-compatible text digest: directory structure plus prioritised file contents (documentation, manifests, entry points, source, tests, notebooks with outputs).</p>
+        </article>
+        <article>
+          <h3>Two-layer evaluation</h3>
+          <p>Deterministic checks (documentation, tests, reproducibility, results evidence, secret leakage, commit timeline) are combined with an LLM review against the selected problem statement and an eight-criterion weighted rubric.</p>
+        </article>
+        <article>
+          <h3>Outputs</h3>
+          <p>An on-screen evaluation record, a printable PDF report with signature block, the full text digest, a JSON record, viva questions for the demo, and an interactive “ask the repository” assistant.</p>
+        </article>
+      </div>
+      <p class="fineprint">AI-generated assessments are advisory. Scores support, and never replace, the judgement of the evaluation committee. Only public repositories are accessed; API keys remain in this browser.</p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <span>AIORI-3 Repository Analyser &middot; static, client-side tool hosted on GitHub Pages</span>
+      <span>Digest format compatible with <a href="https://gitingest.com" target="_blank" rel="noopener">gitingest</a></span>
+    </div>
+  </footer>
+
+  <!-- Side panel: presentation PDF / demo video -->
+  <aside id="viewer" class="viewer" hidden aria-label="Submission material viewer">
+    <div class="vresize" id="vResize" title="Drag to resize" aria-hidden="true"></div>
+    <div class="vhead">
+      <div class="vtitle"><span class="kicker" id="vKind"></span><strong id="vTitle"></strong></div>
+      <button class="btn ghost small" id="vClose" type="button" aria-label="Close viewer">Close ✕</button>
+    </div>
+    <div class="vtools" id="vTools"></div>
+    <div class="vbody" id="vBody"></div>
+  </aside>
+
+  <!-- Settings -->
+  <dialog id="settingsDlg" class="dlg">
+    <form method="dialog" class="dlg-body" id="settingsForm">
+      <h2 class="dlg-title">Settings</h2>
+      <p class="dlg-note">Keys are stored only in this browser (localStorage) and sent only to the provider you choose. Never commit keys to the repository.</p>
+
+      <fieldset>
+        <legend>AI engine</legend>
+        <div class="field">
+          <label for="setProvider">Provider</label>
+          <select id="setProvider"></select>
+        </div>
+        <div class="field" id="keyField">
+          <label for="setKey">API key <a id="keyLink" href="#" target="_blank" rel="noopener">get a free key ↗</a></label>
+          <input id="setKey" type="password" placeholder="Paste API key">
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label for="setModel">Model <span class="opt">“auto” = best available</span></label>
+            <input id="setModel" type="text" placeholder="auto">
+          </div>
+          <div class="field">
+            <label for="setBudget">Context budget (characters)</label>
+            <input id="setBudget" type="number" min="8000" step="1000">
+          </div>
+        </div>
+        <div class="row-actions models-row">
+          <button class="btn small ghost" type="button" id="btnListModels">List models for this key</button>
+          <select id="setModelSel" class="vsel" hidden aria-label="Available models"></select>
+        </div>
+        <div class="field">
+          <label for="setTemp">Temperature <span class="opt" id="tempVal"></span></label>
+          <input id="setTemp" type="range" min="0" max="1" step="0.05">
+        </div>
+        <div class="row-actions">
+          <button class="btn small" type="button" id="btnTestAI">Test connection</button>
+          <span id="testResult" class="hint"></span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>GitHub access</legend>
+        <div class="field">
+          <label for="setGhToken">Personal access token <span class="opt">optional — raises limit from 60 to 5,000 requests/hour</span></label>
+          <input id="setGhToken" type="password" placeholder="github_pat_… (public read-only scope is enough)">
+        </div>
+      </fieldset>
+
+      <div class="dlg-actions">
+        <button class="btn ghost" value="cancel" type="submit">Cancel</button>
+        <button class="btn primary" id="btnSaveSettings" value="save" type="submit">Save settings</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- History -->
+  <dialog id="historyDlg" class="dlg wide">
+    <div class="dlg-body">
+      <h2 class="dlg-title">Evaluation register</h2>
+      <p class="dlg-note">Analyses performed in this browser. Export to CSV to consolidate across evaluators.</p>
+      <div id="historyTable"></div>
+      <div class="dlg-actions">
+        <button class="btn ghost small" id="btnClearHistory" type="button">Clear register</button>
+        <button class="btn ghost small" id="btnExportCsv" type="button">Export CSV</button>
+        <button class="btn primary small" id="btnCloseHistory" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+</body>
+</html>
