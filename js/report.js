@@ -166,13 +166,21 @@ export function buildPdf(state) {
     heading('Rubric assessment');
     table({
       head: [['Criterion', 'Weight', 'Score', '', 'Justification']],
-      body: RUBRIC.map((c) => [c.label, `${c.weight}%`, `${ai.scores[c.key].score}/10`, '', ai.scores[c.key].justification || '-']).concat([
+      // The bar cell carries its own score, so the bar still draws correctly when
+      // a long row is split across a page break (split rows get a new row index).
+      body: RUBRIC.map((c) => {
+        const s = ai.scores?.[c.key] || { score: 0, justification: '' };
+        return [c.label, `${c.weight}%`, `${s.score}/10`, { content: '', barScore: s.score }, s.justification || '-'];
+      }).concat([
         [{ content: 'Weighted total', styles: { fontStyle: 'bold' } }, '100%', { content: `${ai.overall.toFixed(1)}`, styles: { fontStyle: 'bold' } }, '', `Grade ${ai.grade}`],
       ]),
       columnStyles: { 0: { cellWidth: 118, fontStyle: 'bold' }, 1: { cellWidth: 40, halign: 'center' }, 2: { cellWidth: 40, halign: 'center' }, 3: { cellWidth: 52 }, 4: { cellWidth: 'auto' } },
       didDrawCell: (d) => {
-        if (d.section === 'body' && d.column.index === 3 && d.row.index < RUBRIC.length) {
-          const v = ai.scores[RUBRIC[d.row.index].key].score / 10;
+        const raw = d.cell.raw;
+        if (d.section === 'body' && d.column.index === 3 && raw && typeof raw.barScore === 'number') {
+          if (raw.barDrawn) return; // draw once, not again on the continued half of a split row
+          raw.barDrawn = true;
+          const v = Math.max(0, Math.min(1, raw.barScore / 10));
           const bx = d.cell.x + 5; const by = d.cell.y + 7; const bw = d.cell.width - 10;
           doc.setFillColor(232, 229, 220); doc.rect(bx, by, bw, 5, 'F');
           doc.setFillColor(...(v >= 0.7 ? STATUS_COL.pass : v >= 0.5 ? STATUS_COL.warn : STATUS_COL.fail)); doc.rect(bx, by, bw * v, 5, 'F');
